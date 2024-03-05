@@ -1,0 +1,15 @@
+comau_c5gopen_ros2_interface:
+  ros__parameters:
+    mqtt_broker_ip_ip: "10.7.7.245"
+    mqtt_client_id: "comau_c5gopen_hw_mqtt_client"
+    mqtt_port: 1883
+    mqtt_loop_timeout: 1 #in [ms]
+    topic_fdb_pos_name: "robot/arm1/real_joints_positions"
+    topic_fdb_vel_name: "robot/arm1/real_joints_velocities"
+    topic_cmd_name: "robot/arm1/real_joints_positions"
+    read_only: false
+
+
+
+
+    

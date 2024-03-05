@@ -1,0 +1,8 @@
+<library path="comau_c5gopen_ros2">
+  <class type="cnr::comau::ComauC5GopenHw"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Hardware plugin for COMAU C5Gopen based on MQTT communication with COMAU LPC. See also https://github.com/CNR-STIIMA-IRAS/comau_c5gopen/tree/master
+    </description>
+  </class>
+</library>

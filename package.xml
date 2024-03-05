@@ -3,14 +3,20 @@
 <package format="3">
   <name>comau_c5gopen_ros2</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="enrico.villagrossi@gmail.com">fermi</maintainer>
-  <license>TODO: License declaration</license>
+  <description>ROS 2HW Interface for COMAU C5GOpen controller</description>
+  <maintainer email="enrico.villagrossi@cnr.it">enricovillagrossi</maintainer>
+  <license>BSD3</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+
+  <depend>rclcpp</depend>
+  <depend>pluginlib</depend>
+  <depend>rcpputils</depend>
+  <depend>hardware_interface</depend>
+  <depend>cnr_mqtt_client</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
