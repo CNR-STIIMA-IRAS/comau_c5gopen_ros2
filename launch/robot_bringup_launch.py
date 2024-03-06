@@ -88,7 +88,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "read_only",
-            default_value="false",
+            default_value="true",
             description="If the robot provides only the feedback without receiving commands. ",
         )
     )

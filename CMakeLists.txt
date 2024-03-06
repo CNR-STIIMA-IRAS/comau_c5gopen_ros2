@@ -26,8 +26,8 @@ set(HW_IF_INCLUDE_DEPENDS
   Mosquitto
 )
 
-add_library(${PROJECT_NAME} src/comau_c5gopen_hw.cpp
-                            src/mqtt_driver.cpp)
+add_library(${PROJECT_NAME} SHARED src/comau_c5gopen_hw.cpp
+                                   src/mqtt_driver.cpp)
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_11)
 target_include_directories(${PROJECT_NAME} PUBLIC

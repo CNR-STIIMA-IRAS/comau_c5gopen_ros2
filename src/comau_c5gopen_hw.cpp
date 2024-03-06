@@ -71,8 +71,8 @@ namespace cnr
     }
 
     CallbackReturn ComauC5GopenHw::on_init(const hardware_interface::HardwareInfo & info)
-    {
-      RCLCPP_INFO(logger_, "init comau_c5gopen_hw");
+    {     
+      RCLCPP_INFO(logger_, "Initializing comau_c5gopen_hw");
       if (hardware_interface::SystemInterface::on_init(info) != CallbackReturn::SUCCESS)
       {
         return CallbackReturn::ERROR;
@@ -119,7 +119,7 @@ namespace cnr
         return CallbackReturn::ERROR;
       }
       else
-        RCLCPP_ERROR_STREAM( logger_, "Topic: " << topic_fdb_pos_name_.c_str() << " subscribed");
+        RCLCPP_INFO_STREAM( logger_, "Topic: " << topic_fdb_pos_name_.c_str() << " subscribed");
 
 
       std::string topic_fdb_vel_name_ = info_.hardware_parameters["topic_fdb_vel_name"];
@@ -130,7 +130,7 @@ namespace cnr
         return CallbackReturn::ERROR;
       }
       else
-        RCLCPP_ERROR_STREAM( logger_, "Topic: " << topic_fdb_vel_name_.c_str() << " subscribed");
+        RCLCPP_INFO_STREAM( logger_, "Topic: " << topic_fdb_vel_name_.c_str() << " subscribed");
       
 
       if ( info_.joints.size() > MSG_AXES_LENGTH )
@@ -190,33 +190,42 @@ namespace cnr
 
       // Write the command with the joint current joint position
       topic_cmd_name_ = info_.hardware_parameters["topic_cmd_name"];
+
+      RCLCPP_INFO_STREAM( logger_, "Publishing position commands on topic: " << topic_cmd_name_.c_str() );
       
       nlohmann::json data;
 
-      for (size_t idx=0; joint_position_command_.size(); idx++)
+        
+      for (size_t idx=0; idx<joint_position_command_.size(); idx++)
       {
         std::string joint_str = "J" + std::to_string(idx+1);
-        data[joint_str] = joint_position_command_[idx];
+        data[joint_str.c_str()] = joint_position_command_[idx];
       }
-           
-      const std::string json_file = data.dump();
 
-      int payload_len = json_file.length() + 1;
-      char* payload = new char[ payload_len ];
-      strcpy(payload, json_file.c_str());
-
-      if (mqtt_client_->publish(payload, payload_len, topic_cmd_name_.c_str()) != MOSQ_ERR_SUCCESS )
+    
+      if (!read_only_)
       {
-        RCLCPP_ERROR_STREAM( logger_, "Error while publishing the topic " << topic_cmd_name_ );  
-        delete payload;
-        return CallbackReturn::ERROR;
-      }
+        const std::string json_file = data.dump();
 
-      delete payload;
+        int payload_len = json_file.length() + 1;
+        char* payload = new char[ payload_len ];
+        strcpy(payload, json_file.c_str());
+
+        if (mqtt_client_->publish(payload, payload_len, topic_cmd_name_.c_str()) != MOSQ_ERR_SUCCESS )
+        {
+          RCLCPP_ERROR_STREAM( logger_, "Error while publishing the topic " << topic_cmd_name_ );  
+          delete payload;
+          return CallbackReturn::ERROR;
+        }
+
+        delete payload;
+      }    
 
       comms_ = std::make_shared<JointComms>();
       executor_.add_node(comms_);
       std::thread([this]() { executor_.spin(); }).detach();
+       
+      RCLCPP_ERROR_STREAM( logger_, "Initializing comau_c5gopen_hw" ); 
 
       return CallbackReturn::SUCCESS;
     }
@@ -254,12 +263,9 @@ namespace cnr
       cnr::comau::comau_msg last_pos_msg;  
       if( !mqtt_client_->getLastReceivedMessage(last_pos_msg, topic_fdb_pos_name_) )
       {
-        RCLCPP_INFO_STREAM(logger_, "The current robot position is: " );
         for(size_t idx=0; idx<joint_positions_.size(); idx++)
-        {
           joint_positions_.at(idx) = last_pos_msg.joint_values_[idx]; 
-          RCLCPP_INFO_STREAM(logger_, joint_positions_.at(idx));
-        }
+        
       }  
       else
       {
@@ -267,15 +273,19 @@ namespace cnr
         return return_type::ERROR;
       }
 
+      rclcpp::Clock clock = rclcpp::Clock();      
+      RCLCPP_INFO_STREAM_THROTTLE(logger_, clock, 2000, "The current robot position is: " << joint_positions_.at(0)
+                                                                                                    << joint_positions_.at(1)
+                                                                                                    << joint_positions_.at(2)
+                                                                                                    << joint_positions_.at(3)
+                                                                                                    << joint_positions_.at(4)
+                                                                                                    << joint_positions_.at(5));
+        
       cnr::comau::comau_msg last_vel_msg;  
       if( !mqtt_client_->getLastReceivedMessage(last_vel_msg, topic_fdb_vel_name_) )
       {
-        RCLCPP_INFO_STREAM(logger_, "The current robot velocity is: " );
         for(size_t idx=0; idx<joint_velocities_.size(); idx++)
-        {
           joint_velocities_.at(idx) = last_vel_msg.joint_values_[idx]; 
-          RCLCPP_INFO_STREAM(logger_, joint_velocities_.at(idx));
-        }
       }  
       else
       {
@@ -318,12 +328,12 @@ namespace cnr
         char* payload = new char[ payload_len ];
         strcpy(payload, json_file.c_str());
 
-        if (mqtt_client_->publish(payload, payload_len, topic_cmd_name_.c_str()) != MOSQ_ERR_SUCCESS )
-        {
-          RCLCPP_ERROR_STREAM( logger_, "Error while publishing the topic " << topic_cmd_name_ );  
-          delete payload;
-          return return_type::ERROR;
-        }
+        // if (mqtt_client_->publish(payload, payload_len, topic_cmd_name_.c_str()) != MOSQ_ERR_SUCCESS )
+        // {
+        //   RCLCPP_ERROR_STREAM( logger_, "Error while publishing the topic " << topic_cmd_name_ );  
+        //   delete payload;
+        //   return return_type::ERROR;
+        // }
 
         delete payload;
       }
