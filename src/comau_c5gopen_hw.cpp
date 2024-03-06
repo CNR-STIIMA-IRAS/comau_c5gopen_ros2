@@ -53,8 +53,8 @@ namespace cnr
 
     JointComms::JointComms() : Node("comau_c5gopen_hw")
     {
-      cmd_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/cmd_j_pos",10);
-      fb_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/fb_j_pos",10);
+      cmd_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/command_joint_pos",10);
+      fb_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/feedback_joint_pos",10);
     }
 
 
@@ -83,9 +83,9 @@ namespace cnr
       read_only_ = ( ro =="true") ? true : false;
 
       if(read_only_)
-          RCLCPP_INFO_STREAM(logger_,"\n read only mode active. The robot can be moved from this hardware interface. " );
+          RCLCPP_INFO_STREAM(logger_,"Read only mode active. The robot can be moved from this hardware interface." );
 
-      RCLCPP_INFO_STREAM(logger_,"\n Using C5Gopen to control the robot!" );
+      RCLCPP_INFO_STREAM(logger_,"Using C5Gopen to control the robot!" );
 
 
       // Load configuration parameters
@@ -108,7 +108,7 @@ namespace cnr
 
       std::string mqtt_loop_timeout_str = info_.hardware_parameters["mqtt_loop_timeout"];
       RCLCPP_INFO_STREAM( logger_,"MQTT allowed timeout " << mqtt_loop_timeout_str );
-      int mqtt_loop_timeout = std::stoi(mqtt_loop_timeout_str);
+      mqtt_loop_timeout_ = std::stoi(mqtt_loop_timeout_str);
 
 
       topic_fdb_pos_name_ = info_.hardware_parameters["topic_fdb_pos_name"];
@@ -133,7 +133,7 @@ namespace cnr
         RCLCPP_ERROR_STREAM( logger_, "Topic: " << topic_fdb_vel_name_.c_str() << " subscribed");
       
 
-      if ( MSG_AXES_LENGTH != info_.joints.size())
+      if ( info_.joints.size() > MSG_AXES_LENGTH )
       {
         RCLCPP_ERROR_STREAM( logger_, "The number of robot joint of the comau hardware interface is not the one expected the MQTT client. Please remember that the MQTT interface expect 10 joints." );
         return CallbackReturn::ERROR;
@@ -151,6 +151,8 @@ namespace cnr
 
 
       // Read current robot state
+
+      mqtt_client_->loop(mqtt_loop_timeout_);
       cnr::comau::comau_msg last_pos_msg;  
       if( !mqtt_client_->getLastReceivedMessage(last_pos_msg, topic_fdb_pos_name_) )
       {
@@ -163,7 +165,7 @@ namespace cnr
       }  
       else
       {
-        RCLCPP_ERROR_STREAM( logger_, "Can't recover the last position message received from MQTT." );
+        RCLCPP_ERROR_STREAM(logger_, "Can't recover the last position message received from MQTT." );
         return CallbackReturn::ERROR;
       }
 
@@ -224,8 +226,8 @@ namespace cnr
       std::vector<hardware_interface::StateInterface> state_interfaces;
       for (size_t idx=0; idx<joint_positions_.size(); idx++)
       {
-        state_interfaces.emplace_back(info_.joints[idx].name, "position", &joint_positions_[idx]);
-        state_interfaces.emplace_back(info_.joints[idx].name, "velocity", &joint_velocities_[idx]);
+        state_interfaces.emplace_back(info_.joints[idx].name, hardware_interface::HW_IF_POSITION, &joint_positions_[idx]);
+        state_interfaces.emplace_back(info_.joints[idx].name, hardware_interface::HW_IF_VELOCITY, &joint_velocities_[idx]);
       }
 
       return state_interfaces;
@@ -237,7 +239,7 @@ namespace cnr
 
       for (size_t idx=0; idx<joint_position_command_.size(); idx++)
       {
-        command_interfaces.emplace_back(info_.joints[idx].name, "position", &joint_position_command_[idx]);
+        command_interfaces.emplace_back(info_.joints[idx].name, hardware_interface::HW_IF_POSITION, &joint_position_command_[idx]);
       }
 
       return command_interfaces;
@@ -247,7 +249,8 @@ namespace cnr
     {
       std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
       
-      
+      mqtt_client_->loop(mqtt_loop_timeout_);
+
       cnr::comau::comau_msg last_pos_msg;  
       if( !mqtt_client_->getLastReceivedMessage(last_pos_msg, topic_fdb_pos_name_) )
       {

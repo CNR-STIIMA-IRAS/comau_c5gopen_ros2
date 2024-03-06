@@ -1,7 +1,7 @@
 controller_manager:
   ros__parameters:
 
-    update_rate: XXX
+    update_rate: 1000
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -16,12 +16,12 @@ controller_manager:
 manipulator_controller:
   ros__parameters:
     joints:
-      - J1
-      - J2
-      - J3
-      - J4
-      - J5
-      - J6
+      - joint_1
+      - joint_2
+      - joint_3
+      - joint_4
+      - joint_5
+      - joint_6
     command_interfaces:
       - position
     state_interfaces:
@@ -37,9 +37,9 @@ manipulator_controller:
 forward_position_controller:
   ros__parameters:
     joints:
-      - J1
-      - J2
-      - J3
-      - J4
-      - J5
-      - J6
+      - joint_1
+      - joint_2
+      - joint_3
+      - joint_4
+      - joint_5
+      - joint_6

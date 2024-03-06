@@ -111,6 +111,7 @@ namespace cnr
       std::string topic_fdb_pos_name_;
       std::string topic_fdb_vel_name_;
       std::string topic_cmd_name_;
+      int mqtt_loop_timeout_; 
 
       bool read_only_;
 
