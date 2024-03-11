@@ -37,13 +37,16 @@
 #include <charconv>
 #include <chrono>
 #include <limits>
+#include <math.h>
 #include <set>
 
+#include <rclcpp/duration.hpp>
 #include <rcutils/logging_macros.h>
 #include <hardware_interface/component_parser.hpp>
 
 #include <comau_c5gopen_ros2/json.hpp>
 #include <comau_c5gopen_ros2/comau_c5gopen_hw.hpp>
+#include <comau_c5gopen_ros2/logger_color_macros.hpp>
 
 
 namespace cnr
@@ -100,15 +103,14 @@ namespace cnr
       RCLCPP_INFO_STREAM( logger_,"MQTT port: " << mqtt_port_str );
       int mqtt_port = std::stoi(mqtt_port_str);
       
-
-      RCLCPP_INFO_STREAM( logger_,"Creating MQTT client..." );
-      mqtt_client_.reset( new cnr::comau::MQTTComauClient(mqtt_client_id.c_str(), mqtt_broker_ip.c_str(), mqtt_port) );
-      RCLCPP_INFO_STREAM( logger_,"MQTT client created!" );
-
-
       std::string mqtt_loop_timeout_str = info_.hardware_parameters["mqtt_loop_timeout"];
       RCLCPP_INFO_STREAM( logger_,"MQTT allowed timeout " << mqtt_loop_timeout_str );
       mqtt_loop_timeout_ = std::stoi(mqtt_loop_timeout_str);
+
+
+      RCLCPP_INFO_STREAM( logger_,"Creating MQTT client..." );
+      mqtt_client_.reset( new cnr::comau::MQTTComauClient(mqtt_client_id.c_str(), mqtt_broker_ip.c_str(), mqtt_port, mqtt_loop_timeout_) );
+      RCLCPP_INFO_STREAM( logger_,"MQTT client created!" );
 
 
       topic_fdb_pos_name_ = info_.hardware_parameters["topic_fdb_pos_name"];
@@ -122,7 +124,7 @@ namespace cnr
         RCLCPP_INFO_STREAM( logger_, "Topic: " << topic_fdb_pos_name_.c_str() << " subscribed");
 
 
-      std::string topic_fdb_vel_name_ = info_.hardware_parameters["topic_fdb_vel_name"];
+      topic_fdb_vel_name_ = info_.hardware_parameters["topic_fdb_vel_name"];
       
       if (mqtt_client_->subscribe(NULL, topic_fdb_vel_name_.c_str(), 1) !=0 )
       {
@@ -152,36 +154,60 @@ namespace cnr
 
       // Read current robot state
 
-      mqtt_client_->loop(mqtt_loop_timeout_);
-      cnr::comau::comau_msg last_pos_msg;  
-      if( !mqtt_client_->getLastReceivedMessage(last_pos_msg, topic_fdb_pos_name_) )
+      int received_msg_ = false;
+      rclcpp::Clock clock = rclcpp::Clock();
+      rclcpp::Time start = clock.now();
+
+      while(clock.now()-start <= rclcpp::Duration(10,0))
       {
-        RCLCPP_INFO_STREAM(logger_, "The current robot position is: " );
-        for(size_t idx=0; idx<joint_positions_.size(); idx++)
+        cnr::comau::comau_msg last_pos_msg;  
+        if( mqtt_client_->getLastReceivedMessage(last_pos_msg, topic_fdb_pos_name_) )
         {
-          joint_positions_.at(idx) = last_pos_msg.joint_values_[idx]; 
-          RCLCPP_INFO_STREAM(logger_, joint_positions_.at(idx));
-        }
-      }  
-      else
+          RCLCPP_INFO_STREAM(logger_, "The current robot position is: " );
+          for(size_t idx=0; idx<joint_positions_.size(); idx++)
+          {
+            joint_positions_.at(idx) = last_pos_msg.joint_values_[idx] * (M_PI/180.0); 
+            RCLCPP_INFO_STREAM(logger_, joint_positions_.at(idx));
+          }
+          received_msg_ = true;
+          break;
+        }  
+        rclcpp::sleep_for(std::chrono::milliseconds(1000));
+        RCLCPP_WARN_STREAM(logger_, "Waiting to receive the first position message from MQTT" );
+      }
+
+      if (!received_msg_)
       {
-        RCLCPP_ERROR_STREAM(logger_, "Can't recover the last position message received from MQTT." );
+        RCLCPP_ERROR_STREAM( logger_, "After 10 secs can't recover a position message from MQTT, breaking the hardware interface." );
         return CallbackReturn::ERROR;
       }
 
-      cnr::comau::comau_msg last_vel_msg;  
-      if( !mqtt_client_->getLastReceivedMessage(last_vel_msg, topic_fdb_vel_name_) )
+
+      received_msg_ = false;
+      start = clock.now();
+
+      while(clock.now()-start <= rclcpp::Duration(10,0))
       {
-        RCLCPP_INFO_STREAM(logger_, "The current robot velocity is: " );
-        for(size_t idx=0; idx<joint_velocities_.size(); idx++)
+        cnr::comau::comau_msg last_vel_msg;  
+        if( mqtt_client_->getLastReceivedMessage(last_vel_msg, topic_fdb_vel_name_) )
         {
-          joint_velocities_.at(idx) = last_vel_msg.joint_values_[idx]; 
-          RCLCPP_INFO_STREAM(logger_, joint_velocities_.at(idx));
+          RCLCPP_INFO_STREAM(logger_, "The current robot velocity is: " );
+          for(size_t idx=0; idx<joint_velocities_.size(); idx++)
+          {
+            joint_velocities_.at(idx) = last_vel_msg.joint_values_[idx] * (M_PI/180.0); 
+            RCLCPP_INFO_STREAM(logger_, joint_velocities_.at(idx));
+          }
+          received_msg_ = true;
+          break;
         }
-      }  
-      else
+        rclcpp::sleep_for(std::chrono::milliseconds(1000));
+        RCLCPP_WARN_STREAM(logger_, "Waiting to receive the first velocity message from MQTT" );
+      }
+
+
+      if (!received_msg_)
       {
-        RCLCPP_ERROR_STREAM( logger_, "Can't recover the last velocity message received from MQTT." );
+        RCLCPP_ERROR_STREAM( logger_, "After 10 secs can't recover a velocity message from MQTT, breaking the hardware interface." );
         return CallbackReturn::ERROR;
       }
 
@@ -199,7 +225,7 @@ namespace cnr
       for (size_t idx=0; idx<joint_position_command_.size(); idx++)
       {
         std::string joint_str = "J" + std::to_string(idx+1);
-        data[joint_str.c_str()] = joint_position_command_[idx];
+        data[joint_str.c_str()] = joint_position_command_[idx] * (180.0/M_PI);
       }
 
     
@@ -225,7 +251,7 @@ namespace cnr
       executor_.add_node(comms_);
       std::thread([this]() { executor_.spin(); }).detach();
        
-      RCLCPP_ERROR_STREAM( logger_, "Initializing comau_c5gopen_hw" ); 
+      RCLCPP_INFO_STREAM( logger_, cnr_logger::BOLDGREEN() << "Hardware iterface comau_c5gopen_hw initialized!" << cnr_logger::RESET() ); 
 
       return CallbackReturn::SUCCESS;
     }
@@ -258,34 +284,23 @@ namespace cnr
     {
       std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
       
-      mqtt_client_->loop(mqtt_loop_timeout_);
-
       cnr::comau::comau_msg last_pos_msg;  
-      if( !mqtt_client_->getLastReceivedMessage(last_pos_msg, topic_fdb_pos_name_) )
+      if( mqtt_client_->getLastReceivedMessage(last_pos_msg, topic_fdb_pos_name_) )
       {
         for(size_t idx=0; idx<joint_positions_.size(); idx++)
-          joint_positions_.at(idx) = last_pos_msg.joint_values_[idx]; 
-        
+          joint_positions_.at(idx) = last_pos_msg.joint_values_[idx] * (M_PI/180); 
       }  
       else
       {
         RCLCPP_ERROR_STREAM( logger_, "Can't recover the last position message received from MQTT." );
         return return_type::ERROR;
       }
-
-      rclcpp::Clock clock = rclcpp::Clock();      
-      RCLCPP_INFO_STREAM_THROTTLE(logger_, clock, 2000, "The current robot position is: " << joint_positions_.at(0)
-                                                                                                    << joint_positions_.at(1)
-                                                                                                    << joint_positions_.at(2)
-                                                                                                    << joint_positions_.at(3)
-                                                                                                    << joint_positions_.at(4)
-                                                                                                    << joint_positions_.at(5));
-        
+  
       cnr::comau::comau_msg last_vel_msg;  
-      if( !mqtt_client_->getLastReceivedMessage(last_vel_msg, topic_fdb_vel_name_) )
+      if( mqtt_client_->getLastReceivedMessage(last_vel_msg, topic_fdb_vel_name_) )
       {
         for(size_t idx=0; idx<joint_velocities_.size(); idx++)
-          joint_velocities_.at(idx) = last_vel_msg.joint_values_[idx]; 
+          joint_velocities_.at(idx) = last_vel_msg.joint_values_[idx] * (M_PI/180); 
       }  
       else
       {
@@ -311,16 +326,22 @@ namespace cnr
     return_type ComauC5GopenHw::write(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
     {
       std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
+      
       if(!read_only_)
       {
-        nlohmann::json data;
-
-        for (size_t idx=0; joint_position_command_.size(); idx++)
+        nlohmann::json data;        
+        for (size_t idx=0; idx<joint_position_command_.size(); idx++)
         {
           std::string joint_str = "J" + std::to_string(idx+1);
-          data[joint_str] = joint_position_command_[idx];
+          data[joint_str.c_str()] = joint_position_command_[idx] * (180/M_PI);
         }
+
+        // COMAU CONTROLLER WANTS 10 AXES
+        // TO BE IMPROVED 
+        data["J7"] = 0.0;
+        data["J8"] = 0.0;
+        data["J9"] = 0.0;
+        data["J10"] = 0.0;
             
         const std::string json_file = data.dump();
 
@@ -328,12 +349,12 @@ namespace cnr
         char* payload = new char[ payload_len ];
         strcpy(payload, json_file.c_str());
 
-        // if (mqtt_client_->publish(payload, payload_len, topic_cmd_name_.c_str()) != MOSQ_ERR_SUCCESS )
-        // {
-        //   RCLCPP_ERROR_STREAM( logger_, "Error while publishing the topic " << topic_cmd_name_ );  
-        //   delete payload;
-        //   return return_type::ERROR;
-        // }
+        if (mqtt_client_->publish(payload, payload_len, topic_cmd_name_.c_str()) != MOSQ_ERR_SUCCESS )
+        {
+          RCLCPP_ERROR_STREAM( logger_, "Error while publishing the topic " << topic_cmd_name_ );  
+          delete payload;
+          return return_type::ERROR;
+        }
 
         delete payload;
       }

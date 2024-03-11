@@ -58,6 +58,13 @@ namespace cnr
     // void tic(int mode=0);
     // void toc();
 
+    enum thread_status
+    {
+      BEFORE_RUN  = 0,
+      RUNNING     = 1,
+      CLOSED      = 2 
+    }__attribute__ ( ( packed ) );
+
     struct comau_msg 
     {
       double joint_values_[MSG_AXES_LENGTH] = {0};   
@@ -97,11 +104,11 @@ namespace cnr
     class MQTTComauClient
     {
     public:
-      MQTTComauClient (const char *id, const char *host, const int port, int keepalive = 60);
+      MQTTComauClient (const char *id, const char *host, const int port, const int loop_timeout, int keepalive = 60);
       ~MQTTComauClient();
 
       int stop();
-      int loop(int timeout=4);
+      int loop(const int timeout=4);
       int reconnect();  
       int subscribe(int *mid, const char *sub, int qos);
       int unsubscribe(int *mid, const char *sub);
@@ -121,6 +128,12 @@ namespace cnr
 
       cnr::mqtt::MQTTClient* mqtt_client_;
 
+      int loop_timeout_;
+
+      std::thread mqtt_thread_;
+      thread_status mqtt_thread_status_ = thread_status::BEFORE_RUN;
+
+      void MQTTThread();
     };
   }
 

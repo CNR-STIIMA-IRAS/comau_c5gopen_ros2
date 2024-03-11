@@ -46,6 +46,7 @@ void throw_exception( std::exception const & e ) { throw 11; };
 #include <comau_c5gopen_ros2/json.hpp>
 
 #include <comau_c5gopen_ros2/mqtt_driver.hpp>
+#include <comau_c5gopen_ros2/logger_color_macros.hpp>
 
 namespace cnr
 {
@@ -78,11 +79,10 @@ namespace cnr
     
       if (mtx_.try_lock_for(std::chrono::milliseconds(1))) //try to lock mutex for 1ms
       {
-
         for (size_t id=0; id<MSG_AXES_LENGTH; id++)
         {
           std::string joint_str = "J" + std::to_string(id+1);
-          mqtt_msg_[std::string(msg->topic)].joint_values_[id] = data[joint_str];
+          mqtt_msg_[std::string(msg->topic)].joint_values_[id] = data[joint_str.c_str()];
         }
 
         mqtt_msg_[std::string(msg->topic)].time_ = data["time"];
@@ -119,7 +119,7 @@ namespace cnr
       // Nothing to do here
     }
 
-    MQTTComauClient::MQTTComauClient(const char *id, const char *host, const int port, int keepalive)
+    MQTTComauClient::MQTTComauClient(const char *id, const char *host, const int port, const int loop_timeout, int keepalive): loop_timeout_(loop_timeout)
     {
       try
       {
@@ -130,6 +130,10 @@ namespace cnr
         comau_msg_decoder_ = new cnr::comau::ComauMsgDecoder(logger_);
 
         mqtt_client_ = new cnr::mqtt::MQTTClient(id, host, port, comau_msg_encoder_, comau_msg_decoder_);
+
+        mqtt_thread_ = std::thread(&cnr::comau::MQTTComauClient::MQTTThread, this); 
+        mqtt_thread_.detach();
+
       }
       catch(const std::exception& e)
       {
@@ -138,12 +142,25 @@ namespace cnr
     }
 
     MQTTComauClient::~MQTTComauClient()
-    {  
+    { 
+      mqtt_thread_status_ = thread_status::CLOSED; 
+
       delete mqtt_msg_dec_;
       delete mqtt_msg_enc_;
       delete comau_msg_decoder_;
       delete comau_msg_encoder_;
       delete mqtt_client_;
+    }
+
+    void MQTTComauClient::MQTTThread()
+    {
+      RCLCPP_INFO_STREAM(logger_, cnr_logger::BOLDGREEN() << "MQTTComauClient entering in the infinite loop... " << cnr_logger::RESET() );
+      mqtt_thread_status_ = thread_status::RUNNING;
+      while (mqtt_thread_status_ == thread_status::RUNNING)
+      {
+        loop(loop_timeout_);
+      }
+      RCLCPP_INFO_STREAM(logger_, "MQTTComauClient infinite loop closed!" );
     }
 
     int MQTTComauClient::stop()
@@ -154,7 +171,7 @@ namespace cnr
       return -1;
     }
 
-    int MQTTComauClient::loop(int timeout)
+    int MQTTComauClient::loop(const int timeout)
     {
       if (mqtt_client_ != NULL)
         return mqtt_client_->loop(timeout);

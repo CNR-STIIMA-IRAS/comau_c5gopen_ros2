@@ -25,7 +25,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "controllers_file",
-            default_value="scaled_velocity_controller.yaml"
+            default_value="controllers.yaml"
         )
     )
     
@@ -88,12 +88,12 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "read_only",
-            default_value="true",
+            default_value="false",
             description="If the robot provides only the feedback without receiving commands. ",
         )
     )
 
-    description_package = "nj_220_2_7_description"
+    description_package = "nj-220-27_description"
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
     controllers_file = LaunchConfiguration("controllers_file")
     mqtt_broker_ip = LaunchConfiguration("mqtt_broker_ip")
@@ -109,7 +109,7 @@ def generate_launch_description():
     robot_description_content = Command(
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
-            " ",PathJoinSubstitution([FindPackageShare(description_package), "urdf", "nj_220_2_7.xacro.urdf"]),
+            " ",PathJoinSubstitution([FindPackageShare(description_package), "urdf", "nj-220-27.xacro.urdf"]),
             " ", "use_fake_hardware:=", use_fake_hardware,
             " ", "mqtt_broker_ip:=", mqtt_broker_ip,
             " ", "mqtt_client_id:=", mqtt_client_id,
@@ -164,10 +164,10 @@ def generate_launch_description():
     )
     
     move_group = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(get_package_share_directory('nj_220_2_7_moveit_config'),'launch', 'move_group.launch.py')]),)
+        PythonLaunchDescriptionSource([os.path.join(get_package_share_directory('nj-220-27_moveit_config'),'launch', 'move_group.launch.py')]),)
     
     moveit_rviz = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(get_package_share_directory('nj_220_2_7_moveit_config'),'launch', 'moveit_rviz.launch.py')]),)
+        PythonLaunchDescriptionSource([os.path.join(get_package_share_directory('nj-220-27_moveit_config'),'launch', 'moveit_rviz.launch.py')]),)
     
     nodes_to_start = [
         control_node,
