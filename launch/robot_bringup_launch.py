@@ -25,7 +25,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "controllers_file",
-            default_value="controllers.yaml"
+            default_value="scaled_velocity_controller.yaml"
         )
     )
     
