@@ -25,14 +25,14 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "controllers_file",
-            default_value="scaled_velocity_controller.yaml"
+            default_value="controllers.yaml"
         )
     )
     
     declared_arguments.append(
         DeclareLaunchArgument(
             "mqtt_broker_ip",
-            default_value="10.7.7.246",
+            default_value="10.7.7.245",
             description="The IP of the MQTT broker to communicate with the COMAU LPC.",
         )
     )
